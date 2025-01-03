@@ -69,13 +69,9 @@ const OfficerData = () => {
       title: "ID",
       dataIndex: "id",
       key: "id",
+      fixed: "left",
       align: "center",
-      sorter: (a, b) => {
-        const valueA = parseInt(a.id) || 0;
-        const valueB = parseInt(b.id) || 0;
-        return valueB - valueA; // Sort from highest to lowest
-      },
-      defaultSortOrder: "ascend",
+      sorter: (a, b) => a.id.localeCompare(b.id),
       width: 170,
       render: (text) => renderHighlightedText(text, searchQuery),
     },
@@ -139,16 +135,6 @@ const OfficerData = () => {
 
       setRecords(dataWithIds);
       setFilteredRecords(dataWithIds);
-
-      const sortedData = [...dataWithIds].sort((a, b) => {
-        const valueA = parseInt(a.id) || 0;
-        const valueB = parseInt(b.id) || 0;
-        return valueB - valueA;
-      });
-
-      setRecords(sortedData);
-      setFilteredRecords(sortedData);
-      setSorter({ columnKey: "ID", order: "ascend" });
 
       setLoading(false);
     } catch (error) {
@@ -285,8 +271,6 @@ const OfficerData = () => {
             ? aValue.localeCompare(bValue)
             : bValue.localeCompare(aValue);
         } else if (typeof aValue === "number" && typeof bValue === "number") {
-          return sorter.order === "ascend" ? aValue - bValue : bValue - aValue;
-        } else if (aValue instanceof Date && bValue instanceof Date) {
           return sorter.order === "ascend" ? aValue - bValue : bValue - aValue;
         }
         return 0; // Default case if types are inconsistent

@@ -76,13 +76,20 @@ function Navbar() {
               onClick={toggleProfileDropdown}
             />
             {isProfileDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-24 items-center bg-white border border-gray-200 rounded-md shadow-lg py-1">
+              <div className="absolute right-0 mt-2 w-40 items-center bg-white border border-gray-200 rounded-md shadow-lg py-1 z-50">
+                <a
+                  href="/ChangeAdminPassword"
+                  className="flex justify-between w-full text-left font-medium px-4 py-2 text-sm hover:bg-gray-100"
+                >
+                  Change Password
+                  <img className="ml-1" src={logoutIcon} alt="Logout Icon" />
+                </a>
                 <button
-                  className="flex items-center justify-start font-medium px-4 py-2 gap-2 text-sm hover:bg-gray-100"
+                  className="flex justify-between w-full text-left font-medium px-4 py-2 text-sm hover:bg-gray-100"
                   onClick={handleLogout}
                 >
                   Logout
-                  <img src={logoutIcon} alt="Logout Icon" className="ml-auto" />
+                  <img src={logoutIcon} alt="Logout Icon" className="mt-1" />
                 </button>
               </div>
             )}

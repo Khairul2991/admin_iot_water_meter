@@ -1,8 +1,8 @@
 // src/pages/UserData.js
 // eslint-disable-next-line no-unused-vars
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Table, Button, Modal, Alert } from "antd";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { MdRefresh } from "react-icons/md";
 import { firestore } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -46,36 +46,44 @@ const UserData = () => {
     );
   };
 
+  const getAllWaterMeterKeys = (data) => {
+    const allKeys = new Set();
+    data.forEach((record) => {
+      Object.keys(record.waterMeters || {}).forEach((key) => allKeys.add(key));
+    });
+    return Array.from(allKeys);
+  };
+
+  const allWaterMeterKeys = getAllWaterMeterKeys(records);
+
   // Dynamically add waterMeter columns with two sub-columns: ID and Address
-  const waterMeterColumns = records.length
-    ? Object.keys(records[0].waterMeters || {}).flatMap((key, index) => [
-        {
-          title: (
-            <div style={{ textAlign: "center" }}>{`Water Meter ID ${
-              index + 1
-            }`}</div>
-          ),
-          dataIndex: ["waterMeters", key, "id"],
-          key: `${key}_id`,
-          align: "center",
-          width: 250,
-          render: (id) => (id ? renderHighlightedText(id, searchQuery) : "N/A"),
-        },
-        {
-          title: (
-            <div style={{ textAlign: "center" }}>{`Water Meter Address ${
-              index + 1
-            }`}</div>
-          ),
-          dataIndex: ["waterMeters", key, "address"],
-          key: `${key}_address`,
-          align: "center",
-          width: 250,
-          render: (address) =>
-            address ? renderHighlightedText(address, searchQuery) : "N/A",
-        },
-      ])
-    : [];
+  const waterMeterColumns = allWaterMeterKeys.flatMap((key, index) => [
+    {
+      title: (
+        <div style={{ textAlign: "center" }}>{`Water Meter ID ${
+          index + 1
+        }`}</div>
+      ),
+      dataIndex: ["waterMeters", key, "id"],
+      key: `${key}_id`,
+      align: "center",
+      width: 200,
+      render: (id) => (id ? renderHighlightedText(id, searchQuery) : "-"),
+    },
+    {
+      title: (
+        <div style={{ textAlign: "center" }}>{`Water Meter Address ${
+          index + 1
+        }`}</div>
+      ),
+      dataIndex: ["waterMeters", key, "address"],
+      key: `${key}_address`,
+      align: "center",
+      width: 250,
+      render: (address) =>
+        address ? renderHighlightedText(address, searchQuery) : "-",
+    },
+  ]);
 
   const columns = [
     {
@@ -92,12 +100,7 @@ const UserData = () => {
       title: <div style={{ textAlign: "center" }}>{`Name`}</div>,
       dataIndex: "name",
       key: "name",
-      sorter: (a, b) => {
-        const valueA = parseInt(a.name) || 0;
-        const valueB = parseInt(b.name) || 0;
-        return valueB - valueA; // Sort from highest to lowest
-      },
-      defaultSortOrder: "ascend",
+      sorter: (a, b) => a.name.localeCompare(b.name),
       fixed: "left",
       width: 250,
       render: (text) => renderHighlightedText(text, searchQuery),
@@ -130,20 +133,11 @@ const UserData = () => {
       render: (text) => renderHighlightedText(text, searchQuery),
     },
     {
-      title: "Sub District",
-      dataIndex: "subDistrict",
-      key: "subDistrict",
+      title: "City",
+      dataIndex: "city",
+      key: "city",
       align: "center",
-      sorter: (a, b) => a.subDistrict.localeCompare(b.subDistrict),
-      width: 200,
-      render: (text) => renderHighlightedText(text, searchQuery),
-    },
-    {
-      title: "District",
-      dataIndex: "district",
-      key: "district",
-      align: "center",
-      sorter: (a, b) => a.district.localeCompare(b.district),
+      sorter: (a, b) => a.city.localeCompare(b.city),
       width: 200,
       render: (text) => renderHighlightedText(text, searchQuery),
     },
@@ -173,21 +167,35 @@ const UserData = () => {
       fixed: "right",
       align: "center",
       render: (text, record) => (
+        <div>
         <Button
           icon={<FaEdit />}
-          className="bg-green-400 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out"
+          className="bg-green-300 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out"
           onClick={() => handleEditData(record.key)} // Handle navigation to EditPetugas
         >
           Edit
         </Button>
+        <Button
+          icon={<FaPlus />}
+          className="bg-blue-300 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out ml-2"
+          onClick={() => handleAddWaterMeter(record.key)} // Handle Add Water Meter functionality
+        >
+          Add Water Meter
+        </Button>
+      </div>
       ),
-      width: 150,
+      width: 260,
     },
   ];
 
   const handleEditData = (key) => {
     const selectedData = records.find((record) => record.key === key);
-    navigate("/EditDataUser", { state: { data: selectedData } }); // Navigate to EditPetugas page
+    navigate("/EditDataUser", { state: { data: selectedData } });
+  };
+
+  const handleAddWaterMeter = (key) => {
+    const selectedData = records.find((record) => record.key === key);
+    navigate("/AddWaterMeter", { state: { data: selectedData } });
   };
 
   const fetchData = async () => {
@@ -224,16 +232,6 @@ const UserData = () => {
 
       setRecords(dataWithIds);
       setFilteredRecords(dataWithIds);
-
-      const sortedData = [...dataWithIds].sort((a, b) => {
-        const valueA = parseInt(a.name) || 0;
-        const valueB = parseInt(b.name) || 0;
-        return valueB - valueA;
-      });
-
-      setRecords(sortedData);
-      setFilteredRecords(sortedData);
-      setSorter({ columnKey: "Name", order: "ascend" });
 
       setLoading(false);
     } catch (error) {
@@ -392,8 +390,7 @@ const UserData = () => {
         record.email,
         record.phoneNumber,
         record.street,
-        record.subDistrict,
-        record.district,
+        record.city,
         record.province,
         record.country,
         ...Object.values(record.waterMeters || {}).flatMap((waterMeter) => [

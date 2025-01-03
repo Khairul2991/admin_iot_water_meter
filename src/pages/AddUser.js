@@ -11,11 +11,13 @@ const AddUser = () => {
     email: "",
     phoneNumber: "",
     street: "",
-    subDistrict: "",
-    district: "",
+    city: "",
     province: "",
     country: "",
-    waterMeter1: "",
+    waterMeter1: {
+      address: "",
+      id: "",
+    },
   });
 
   const [errors, setErrors] = useState({});
@@ -29,14 +31,23 @@ const AddUser = () => {
     const { name, value } = e.target;
     let newErrors = { ...errors };
 
-    setFormData({ ...formData, [name]: value });
+    // Handle nested waterMeter1 fields
+    if (name === "waterMeterAddress" || name === "waterMeterId") {
+      setFormData({
+        ...formData,
+        waterMeter1: {
+          ...formData.waterMeter1,
+          [name === "waterMeterAddress" ? "address" : "id"]: value,
+        },
+      });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
 
-    if (name === "email") {
-      if (!validateEmail(value)) {
-        newErrors[name] = "Kesalahan format email";
-      } else {
-        delete newErrors[name];
-      }
+    if (name === "email" && !validateEmail(value)) {
+      newErrors[name] = "Invalid email format";
+    } else {
+      delete newErrors[name];
     }
 
     setErrors(newErrors);
@@ -61,9 +72,34 @@ const AddUser = () => {
     let firstErrorElement = null;
 
     Object.keys(formData).forEach((key) => {
-      if (key === "email") {
-        if (!validateEmail(formData[key])) {
-          newErrors[key] = "Kesalahan format email";
+      if (key === "waterMeter1") {
+        // Validate nested fields in waterMeter1
+        if (!formData.waterMeter1.address) {
+          newErrors.waterMeterAddress = "Water Meter Address is required";
+          if (!firstErrorElement) {
+            firstErrorElement = inputRefs.current.waterMeterAddress;
+          }
+        }
+        if (!formData.waterMeter1.id) {
+          newErrors.waterMeterId = "Water Meter ID is required";
+          if (!firstErrorElement) {
+            firstErrorElement = inputRefs.current.waterMeterId;
+          }
+        }
+      } else {
+        if (!formData[key]) {
+          newErrors[key] = `${
+            key.charAt(0).toUpperCase() +
+            key.slice(1).replace(/([A-Z])/g, " $1")
+          } is required`;
+          if (!firstErrorElement) {
+            firstErrorElement = inputRefs.current[key];
+          }
+        }
+
+        // Additional email validation
+        if (key === "email" && formData[key] && !validateEmail(formData[key])) {
+          newErrors[key] = "Invalid email format";
           if (!firstErrorElement) {
             firstErrorElement = inputRefs.current[key];
           }
@@ -87,61 +123,29 @@ const AddUser = () => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("No token found");
-      }
-
-      let fotoURL = "";
-      if (formData.foto instanceof File) {
-        const fotoData = new FormData();
-        fotoData.append("image", formData.foto);
-
-        try {
-          const fotoResponse = await axios.post(
-            "https://sipedas-api.vercel.app/profile/upload-foto",
-            fotoData,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
-          // Extract the image URL from the response data
-          fotoURL = fotoResponse.data.data.imageUrl;
-        } catch (error) {
-          setErrors({ foto: "Failed to upload photo" });
-
-          return; // Stop further execution if photo upload fails
+      const response = await axios.post(
+        "http://localhost:5000/api/register-user",
+        {
+          name: formData.name,
+          email: formData.email,
+          phoneNumber: formData.phoneNumber,
+          street: formData.street,
+          city: formData.city,
+          province: formData.province,
+          country: formData.country,
+          waterMeter1: formData.waterMeter1,
+          role: "user",
         }
+      );
+
+      if (response.status === 200) {
+        setShowSuccessModal(true);
       }
-
-      const data = { ...formData, foto: fotoURL };
-
-      await axios.post("https://sipedas-api.vercel.app/employees/", data, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      setShowSuccessModal(true);
     } catch (error) {
-      if (
-        error.response &&
-        error.response.data.message.includes("duplicate key error")
-      ) {
-        alert(
-          "An employee with this ID already exists. Please use a different ID."
-        );
-      } else {
-        alert(
-          `Failed to add data: ${
-            error.response ? error.response.data.message : error.message
-          }`
-        );
-      }
+      console.error("Error registering user:", error);
+      alert(
+        `Failed to add user: ${error.response?.data?.error || error.message}`
+      );
     } finally {
       setLoading(false);
     }
@@ -178,47 +182,46 @@ const AddUser = () => {
     >
       <main className="pb-8 w-full max-w-7xl">
         <div className="form-1 bg-white shadow overflow-hidden sm:rounded-lg p-6">
-          <h1 className="text-2xl font-bold mb-6 text-center">
-            Add Data Officer
-          </h1>
+          <h1 className="text-2xl font-bold mb-6 text-center">Add User Data</h1>
           <form onSubmit={handleSubmitWithConfirmation}>
             <div className="form-2 bg-white shadow-xl overflow-hidden sm:rounded-lg p-6 my-4">
-              <h1 className="text-xl font-bold mb-6 text-start">
-                Data Officer
-              </h1>
+              <h1 className="text-xl font-bold mb-6 text-start">User Data</h1>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-start">
                 {[
-                  "name",
-                  "email",
-                  "phone Number",
-                  "street",
-                  "sub District",
-                  "district",
-                  "province",
-                  "country",
-                  "water Meter id",
-                  "water Meter address",
-                ].map((key) => {
-                  return (
-                    <div className="mb-4" key={key}>
-                      <label className="block text-gray-700 mb-2" htmlFor={key}>
-                        {key.replace("_", " ").toUpperCase()}
-                      </label>
-                      <input
-                        type={"text"}
-                        id={key}
-                        name={key}
-                        value={formData[key]}
-                        onChange={handleChange}
-                        ref={(el) => (inputRefs.current[key] = el)}
-                        className="border border-gray-300 rounded-md p-2 w-full"
-                      />
-                      {errors[key] && (
-                        <p className="text-red-500 text-sm">{errors[key]}</p>
-                      )}
-                    </div>
-                  );
-                })}
+                  { name: "name", label: "Name" },
+                  { name: "email", label: "Email" },
+                  { name: "phoneNumber", label: "Phone Number" },
+                  { name: "street", label: "Street" },
+                  { name: "city", label: "City" },
+                  { name: "province", label: "Province" },
+                  { name: "country", label: "Country" },
+                  { name: "waterMeterAddress", label: "Water Meter Address" },
+                  { name: "waterMeterId", label: "Water Meter ID" },
+                ].map(({ name, label }) => (
+                  <div className="mb-4" key={name}>
+                    <label className="block text-gray-700 mb-2" htmlFor={name}>
+                      {label}
+                    </label>
+                    <input
+                      type="text"
+                      id={name}
+                      name={name}
+                      value={
+                        name === "waterMeterAddress" || name === "waterMeterId"
+                          ? formData.waterMeter1[
+                              name === "waterMeterAddress" ? "address" : "id"
+                            ]
+                          : formData[name]
+                      }
+                      onChange={handleChange}
+                      ref={(el) => (inputRefs.current[name] = el)}
+                      className="border border-gray-300 rounded-md p-2 w-full"
+                    />
+                    {errors[name] && (
+                      <p className="text-red-500 text-sm">{errors[name]}</p>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -243,9 +246,9 @@ const AddUser = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-xl font-bold mb-4">Confirmation</h2>
-            <p className="mb-4">Are you sure you want to add this data?</p>
+          <div className="bg-white p-8 rounded-lg shadow-lg">
+            <h2 className="text-xl font-bold mb-8">Confirmation</h2>
+            <p className="mb-8">Are you sure you want to add this data?</p>
             <div className="flex justify-end gap-4">
               <button
                 onClick={handleCancelModal}

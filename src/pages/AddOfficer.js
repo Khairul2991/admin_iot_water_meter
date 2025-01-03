@@ -1,9 +1,9 @@
 // src/pages/AddOfficer.jsx
 // eslint-disable-next-line no-unused-vars
 import React, { useState, useRef, useEffect } from "react";
-import axios from "axios";
 import "../Number.css";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 const AddOfficer = () => {
   const [formData, setFormData] = useState({
@@ -25,12 +25,14 @@ const AddOfficer = () => {
 
     setFormData({ ...formData, [name]: value });
 
-    if (name === "email") {
-      if (!validateEmail(value)) {
-        newErrors[name] = "Kesalahan format email";
-      } else {
-        delete newErrors[name];
-      }
+    if (!value.trim()) {
+      newErrors[name] = `${
+        name.charAt(0).toUpperCase() + name.slice(1)
+      } is required`;
+    } else if (name === "email" && !validateEmail(value)) {
+      newErrors[name] = "Invalid email format";
+    } else {
+      delete newErrors[name];
     }
 
     setErrors(newErrors);
@@ -55,12 +57,17 @@ const AddOfficer = () => {
     let firstErrorElement = null;
 
     Object.keys(formData).forEach((key) => {
-      if (key === "email") {
-        if (!validateEmail(formData[key])) {
-          newErrors[key] = "Kesalahan format email";
-          if (!firstErrorElement) {
-            firstErrorElement = inputRefs.current[key];
-          }
+      if (!formData[key].trim()) {
+        newErrors[key] = `${
+          key.charAt(0).toUpperCase() + key.slice(1)
+        } is required`;
+        if (!firstErrorElement) {
+          firstErrorElement = inputRefs.current[key];
+        }
+      } else if (key === "email" && !validateEmail(formData[key])) {
+        newErrors[key] = "Invalid email format";
+        if (!firstErrorElement) {
+          firstErrorElement = inputRefs.current[key];
         }
       }
     });
@@ -81,61 +88,26 @@ const AddOfficer = () => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("No token found");
-      }
-
-      let fotoURL = "";
-      if (formData.foto instanceof File) {
-        const fotoData = new FormData();
-        fotoData.append("image", formData.foto);
-
-        try {
-          const fotoResponse = await axios.post(
-            "https://sipedas-api.vercel.app/profile/upload-foto",
-            fotoData,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
-          // Extract the image URL from the response data
-          fotoURL = fotoResponse.data.data.imageUrl;
-        } catch (error) {
-          setErrors({ foto: "Failed to upload photo" });
-
-          return; // Stop further execution if photo upload fails
+      const response = await axios.post(
+        "http://localhost:5000/api/register-officer", // Endpoint backend
+        {
+          name: formData.name,
+          id: formData.id,
+          email: formData.email,
+          role: "officer", // Role bisa Anda sesuaikan
         }
+      );
+
+      if (response.status === 200) {
+        setShowSuccessModal(true);
       }
-
-      const data = { ...formData, foto: fotoURL };
-
-      await axios.post("https://sipedas-api.vercel.app/employees/", data, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      setShowSuccessModal(true);
     } catch (error) {
-      if (
-        error.response &&
-        error.response.data.message.includes("duplicate key error")
-      ) {
-        alert(
-          "An employee with this ID already exists. Please use a different ID."
-        );
-      } else {
-        alert(
-          `Failed to add data: ${
-            error.response ? error.response.data.message : error.message
-          }`
-        );
-      }
+      console.error("Error adding officer:", error);
+      alert(
+        `Failed to register officer: ${
+          error.response?.data?.error || error.message
+        }`
+      );
     } finally {
       setLoading(false);
     }
@@ -173,31 +145,38 @@ const AddOfficer = () => {
       <main className="pb-8 w-full max-w-7xl">
         <div className="form-1 bg-white shadow overflow-hidden sm:rounded-lg p-6">
           <h1 className="text-2xl font-bold mb-6 text-center">
-            Add Data Officer
+            Add Officer Data
           </h1>
           <form onSubmit={handleSubmitWithConfirmation}>
             <div className="form-2 bg-white shadow-xl overflow-hidden sm:rounded-lg p-6 my-4">
               <h1 className="text-xl font-bold mb-6 text-start">
-                Data Officer
+                Officer Data
               </h1>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-start">
-                {["name", "id", "email"].map((key) => {
+                {[
+                  { name: "name", label: "Name" },
+                  { name: "id", label: "ID Officer" },
+                  { name: "email", label: "Email" },
+                ].map(({ name, label }) => {
                   return (
-                    <div className="mb-4" key={key}>
-                      <label className="block text-gray-700 mb-2" htmlFor={key}>
-                        {key.replace("_", " ").toUpperCase()}
+                    <div className="mb-4" key={name}>
+                      <label
+                        className="block text-gray-700 mb-2"
+                        htmlFor={name}
+                      >
+                        {label}
                       </label>
                       <input
                         type={"text"}
-                        id={key}
-                        name={key}
-                        value={formData[key]}
+                        id={name}
+                        name={name}
+                        value={formData[name]}
                         onChange={handleChange}
-                        ref={(el) => (inputRefs.current[key] = el)}
+                        ref={(el) => (inputRefs.current[name] = el)}
                         className="border border-gray-300 rounded-md p-2 w-full"
                       />
-                      {errors[key] && (
-                        <p className="text-red-500 text-sm">{errors[key]}</p>
+                      {errors[name] && (
+                        <p className="text-red-500 text-sm">{errors[name]}</p>
                       )}
                     </div>
                   );
@@ -226,9 +205,9 @@ const AddOfficer = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-xl font-bold mb-4">Confirmation</h2>
-            <p className="mb-4">Are you sure you want to add this data?</p>
+          <div className="bg-white p-8 rounded-lg shadow-lg">
+            <h2 className="text-xl font-bold mb-8">Confirmation</h2>
+            <p className="mb-8">Are you sure you want to add this data?</p>
             <div className="flex justify-end gap-4">
               <button
                 onClick={handleCancelModal}
