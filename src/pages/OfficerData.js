@@ -6,6 +6,7 @@ import { FaEdit, FaTrash } from "react-icons/fa";
 import { MdRefresh } from "react-icons/md";
 import { firestore } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import axios from "axios";
 import ExcelJS from "exceljs";
 import { useNavigate } from "react-router-dom";
 import { Buffer } from "buffer";
@@ -28,14 +29,6 @@ const OfficerData = () => {
     pageSize: 10,
   });
 
-  useEffect(() => {
-    // Cek userRole dari localStorage
-    const userRole = localStorage.getItem("userRole");
-    if (userRole !== "admin") {
-      navigate("/Dashboard");
-    }
-  }, [navigate]);
-
   const renderHighlightedText = (text, search) => {
     if (!search.trim()) return text;
     const parts = text.split(new RegExp(`(${search})`, "gi"));
@@ -54,6 +47,22 @@ const OfficerData = () => {
     );
   };
 
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+
+    const filtered = records.filter((record) =>
+      Object.keys(record).some((key) => {
+        // Hindari pencarian pada key tertentu seperti 'key' atau fungsi
+        if (key !== "key" && typeof record[key] === "string") {
+          return record[key].toLowerCase().includes(value.toLowerCase());
+        }
+        return false;
+      })
+    );
+
+    setFilteredRecords(filtered);
+  };
+
   const columns = [
     {
       title: "No.",
@@ -66,7 +75,7 @@ const OfficerData = () => {
         (pagination.current - 1) * pagination.pageSize + index + 1,
     },
     {
-      title: "ID",
+      title: "ID Officer",
       dataIndex: "id",
       key: "id",
       fixed: "left",
@@ -90,7 +99,16 @@ const OfficerData = () => {
       key: "email",
       align: "center",
       sorter: (a, b) => a.email.localeCompare(b.email),
-      width: 300,
+      width: 220,
+      render: (text) => renderHighlightedText(text, searchQuery),
+    },
+    {
+      title: "Phone Number",
+      dataIndex: "phoneNumber",
+      key: "phoneNumber",
+      align: "center",
+      sorter: (a, b) => a.phoneNumber.localeCompare(b.phoneNumber),
+      width: 150,
       render: (text) => renderHighlightedText(text, searchQuery),
     },
     {
@@ -146,7 +164,7 @@ const OfficerData = () => {
 
   const handleEditData = (key) => {
     const selectedData = records.find((record) => record.key === key);
-    navigate("/EditDataOfficer", { state: { data: selectedData } }); // Navigate to EditPetugas page
+    navigate("/EditOfficer", { state: { data: selectedData } }); // Navigate to EditPetugas page
   };
 
   useEffect(() => {
@@ -199,41 +217,33 @@ const OfficerData = () => {
         throw new Error("No token found");
       }
 
-      // for (const nip of selectedRowKeys) {
-      //   const selectedData = records.find((record) => record.nip === nip);
+      // Kirim request ke backend untuk menghapus officer
+      await axios.delete("http://localhost:5000/api/delete-officers", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        data: {
+          officerIds: selectedRowKeys,
+        },
+      });
 
-      //   // Hapus foto dari cloud
-      //   await axios.delete(
-      //     "https://sipedas-api.vercel.app/profile/delete-foto",
-      //     {
-      //       headers: {
-      //         Authorization: `Bearer ${token}`,
-      //       },
-      //       data: {
-      //         imageUrl: selectedData.foto,
-      //       },
-      //     }
-      //   );
-
-      //   // Delete the employee data
-      //   await axios.delete(`https://sipedas-api.vercel.app/employees/${nip}`, {
-      //     headers: {
-      //       Authorization: `Bearer ${token}`,
-      //     },
-      //   });
-      // }
-
+      // Update state lokal setelah penghapusan berhasil
       setRecords((prevRecords) =>
-        prevRecords.filter((record) => !selectedRowKeys.includes(record.nip))
+        prevRecords.filter((record) => !selectedRowKeys.includes(record.key))
       );
       setFilteredRecords((prevRecords) =>
-        prevRecords.filter((record) => !selectedRowKeys.includes(record.nip))
+        prevRecords.filter((record) => !selectedRowKeys.includes(record.key))
       );
+
       setSelectedRowKeys([]);
       setLoading(false);
       setShowSuccessModal(true);
     } catch (error) {
-      setError("Failed to delete data. Please try again later.");
+      setError(
+        error.response?.data?.error || 
+        "Failed to delete data. Please try again later."
+      );
     } finally {
       setLoading(false);
     }
@@ -332,7 +342,7 @@ const OfficerData = () => {
 
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
-    navigate("/DataPetugas", { replace: true });
+    navigate("/OfficerData", { replace: true });
   };
 
   const handleRefresh = () => {
@@ -375,7 +385,7 @@ const OfficerData = () => {
               className="border border-gray-300 rounded-md p-2"
               placeholder="Filter by"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               style={{ width: 250 }}
             />
 

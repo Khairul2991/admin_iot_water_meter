@@ -27,9 +27,33 @@ const AddUser = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const navigate = useNavigate();
 
+  // Fungsi untuk mengubah setiap kata menjadi huruf besar
+  const capitalizeWords = (str) => {
+    return str
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    let processedValue = value;
     let newErrors = { ...errors };
+
+    // Kapitalisasi untuk field-field tertentu
+    const capitalizationFields = [
+      "name",
+      "street",
+      "city",
+      "province",
+      "country",
+      "waterMeterAddress",
+    ];
+
+    if (capitalizationFields.includes(name)) {
+      processedValue = capitalizeWords(value);
+    }
 
     // Handle nested waterMeter1 fields
     if (name === "waterMeterAddress" || name === "waterMeterId") {
@@ -37,14 +61,15 @@ const AddUser = () => {
         ...formData,
         waterMeter1: {
           ...formData.waterMeter1,
-          [name === "waterMeterAddress" ? "address" : "id"]: value,
+          [name === "waterMeterAddress" ? "address" : "id"]:
+            name === "waterMeterAddress" ? capitalizeWords(value) : value,
         },
       });
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData({ ...formData, [name]: processedValue });
     }
 
-    if (name === "email" && !validateEmail(value)) {
+    if (name === "email" && !validateEmail(processedValue)) {
       newErrors[name] = "Invalid email format";
     } else {
       delete newErrors[name];
@@ -246,7 +271,7 @@ const AddUser = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-lg shadow-lg">
+          <div className="bg-white px-8 py-6 rounded-lg shadow-lg">
             <h2 className="text-xl font-bold mb-8">Confirmation</h2>
             <p className="mb-8">Are you sure you want to add this data?</p>
             <div className="flex justify-end gap-4">

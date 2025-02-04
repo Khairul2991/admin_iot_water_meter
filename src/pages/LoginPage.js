@@ -12,6 +12,7 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
@@ -24,6 +25,9 @@ function LoginPage() {
   };
 
   const handleLogin = async () => {
+    // Set loading ke true saat proses login dimulai
+    setLoading(true);
+
     try {
       // Sign in user with Firebase email/password authentication
       const userCredential = await signInWithEmailAndPassword(
@@ -58,6 +62,9 @@ function LoginPage() {
     } catch (error) {
       setErrorMessage(error.message || "An error occurred. Please try again.");
       openErrorModal();
+    } finally {
+      // Set loading kembali ke false setelah proses selesai
+      setLoading(false);
     }
   };
 
@@ -141,6 +148,15 @@ function LoginPage() {
           className="object-cover h-full w-full"
         />
       </div>
+
+      {loading && (
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-40">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-11/12 max-w-md text-center">
+            <h2 className="text-xl font-semibold mb-4">Loading...</h2>
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent border-solid rounded-full animate-spin mx-auto"></div>
+          </div>
+        </div>
+      )}
 
       {isErrorModalOpen && (
         <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">

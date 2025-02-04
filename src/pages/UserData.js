@@ -2,10 +2,11 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useState, useEffect } from "react";
 import { Table, Button, Modal, Alert } from "antd";
-import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
+import { FaEdit, FaTrash } from "react-icons/fa";
 import { MdRefresh } from "react-icons/md";
 import { firestore } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import axios from "axios";
 import ExcelJS from "exceljs";
 import { useNavigate } from "react-router-dom";
 import { Buffer } from "buffer";
@@ -46,44 +47,70 @@ const UserData = () => {
     );
   };
 
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+
+    const filtered = records.filter((record) =>
+      Object.keys(record).some((key) => {
+        // Hindari pencarian pada key tertentu seperti 'key' atau fungsi
+        if (key !== "key" && typeof record[key] === "string") {
+          return record[key].toLowerCase().includes(value.toLowerCase());
+        }
+        return false;
+      })
+    );
+
+    setFilteredRecords(filtered);
+  };
+
   const getAllWaterMeterKeys = (data) => {
     const allKeys = new Set();
     data.forEach((record) => {
-      Object.keys(record.waterMeters || {}).forEach((key) => allKeys.add(key));
+      Object.keys(record.waterMeters || {})
+        .filter((key) => key.startsWith("waterMeter"))
+        .map((key) => {
+          // Ekstrak nomor dari key waterMeter
+          const match = key.match(/waterMeter(\d+)/);
+          return match ? parseInt(match[1]) : 0;
+        })
+        .forEach((num) => allKeys.add(num));
     });
-    return Array.from(allKeys);
+
+    // Urutkan keys numerik
+    return Array.from(allKeys).sort((a, b) => a - b);
   };
 
   const allWaterMeterKeys = getAllWaterMeterKeys(records);
 
   // Dynamically add waterMeter columns with two sub-columns: ID and Address
-  const waterMeterColumns = allWaterMeterKeys.flatMap((key, index) => [
-    {
-      title: (
-        <div style={{ textAlign: "center" }}>{`Water Meter ID ${
-          index + 1
-        }`}</div>
-      ),
-      dataIndex: ["waterMeters", key, "id"],
-      key: `${key}_id`,
-      align: "center",
-      width: 200,
-      render: (id) => (id ? renderHighlightedText(id, searchQuery) : "-"),
-    },
-    {
-      title: (
-        <div style={{ textAlign: "center" }}>{`Water Meter Address ${
-          index + 1
-        }`}</div>
-      ),
-      dataIndex: ["waterMeters", key, "address"],
-      key: `${key}_address`,
-      align: "center",
-      width: 250,
-      render: (address) =>
-        address ? renderHighlightedText(address, searchQuery) : "-",
-    },
-  ]);
+  const waterMeterColumns = allWaterMeterKeys.flatMap((num) => {
+    const key = `waterMeter${num}`;
+    return [
+      {
+        title: (
+          <div style={{ textAlign: "center" }}>{`Water Meter ID ${num}`}</div>
+        ),
+        dataIndex: ["waterMeters", key, "id"],
+        key: `${key}_id`,
+        align: "center",
+        width: 180,
+        render: (id) => (id ? renderHighlightedText(id, searchQuery) : "--"),
+      },
+      {
+        title: (
+          <div
+            style={{ textAlign: "center" }}
+          >{`Water Meter Address ${num}`}</div>
+        ),
+        dataIndex: ["waterMeters", key, "address"],
+        key: `${key}_address`,
+        align: "center",
+        width: 250,
+        render: (address) =>
+          address ? renderHighlightedText(address, searchQuery) : "--",
+      },
+    ];
+  });
 
   const columns = [
     {
@@ -111,7 +138,7 @@ const UserData = () => {
       key: "email",
       align: "center",
       sorter: (a, b) => a.email.localeCompare(b.email),
-      width: 250,
+      width: 220,
       render: (text) => renderHighlightedText(text, searchQuery),
     },
     {
@@ -168,34 +195,34 @@ const UserData = () => {
       align: "center",
       render: (text, record) => (
         <div>
-        <Button
-          icon={<FaEdit />}
-          className="bg-green-300 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out"
-          onClick={() => handleEditData(record.key)} // Handle navigation to EditPetugas
-        >
-          Edit
-        </Button>
-        <Button
-          icon={<FaPlus />}
-          className="bg-blue-300 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out ml-2"
-          onClick={() => handleAddWaterMeter(record.key)} // Handle Add Water Meter functionality
-        >
-          Add Water Meter
-        </Button>
-      </div>
+          <Button
+            icon={<FaEdit />}
+            className="bg-green-300 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out mb-4"
+            onClick={() => handleEditData(record.key)} // Handle navigation to EditPetugas
+          >
+            Edit User Data
+          </Button>
+          <Button
+            icon={<FaEdit />}
+            className="bg-blue-300 fill-white hover:text-custom-blue rounded-lg p-2 transition duration-300 ease-in-out"
+            onClick={() => handleEditWaterMeter(record.key)} // Handle Add Water Meter functionality
+          >
+            Edit Water Meter
+          </Button>
+        </div>
       ),
-      width: 260,
+      width: 240,
     },
   ];
 
   const handleEditData = (key) => {
     const selectedData = records.find((record) => record.key === key);
-    navigate("/EditDataUser", { state: { data: selectedData } });
+    navigate("/EditUser", { state: { data: selectedData } });
   };
 
-  const handleAddWaterMeter = (key) => {
+  const handleEditWaterMeter = (key) => {
     const selectedData = records.find((record) => record.key === key);
-    navigate("/AddWaterMeter", { state: { data: selectedData } });
+    navigate("/EditWaterMeter", { state: { data: selectedData } });
   };
 
   const fetchData = async () => {
@@ -291,36 +318,25 @@ const UserData = () => {
         throw new Error("No token found");
       }
 
-      // for (const nip of selectedRowKeys) {
-      //   const selectedData = records.find((record) => record.nip === nip);
+      // Kirim request ke backend untuk menghapus users
+      await axios.delete("http://localhost:5000/api/delete-users", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        data: {
+          userIds: selectedRowKeys, // Gunakan selectedRowKeys yang berisi ID user
+        },
+      });
 
-      //   // Hapus foto dari cloud
-      //   await axios.delete(
-      //     "https://sipedas-api.vercel.app/profile/delete-foto",
-      //     {
-      //       headers: {
-      //         Authorization: `Bearer ${token}`,
-      //       },
-      //       data: {
-      //         imageUrl: selectedData.foto,
-      //       },
-      //     }
-      //   );
-
-      //   // Delete the employee data
-      //   await axios.delete(`https://sipedas-api.vercel.app/employees/${nip}`, {
-      //     headers: {
-      //       Authorization: `Bearer ${token}`,
-      //     },
-      //   });
-      // }
-
+      // Update state setelah berhasil menghapus
       setRecords((prevRecords) =>
-        prevRecords.filter((record) => !selectedRowKeys.includes(record.nip))
+        prevRecords.filter((record) => !selectedRowKeys.includes(record.key))
       );
       setFilteredRecords((prevRecords) =>
-        prevRecords.filter((record) => !selectedRowKeys.includes(record.nip))
+        prevRecords.filter((record) => !selectedRowKeys.includes(record.key))
       );
+
       setSelectedRowKeys([]);
       setLoading(false);
       setShowSuccessModal(true);
@@ -439,7 +455,7 @@ const UserData = () => {
 
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
-    navigate("/DataPetugas", { replace: true });
+    navigate("/UserData", { replace: true });
   };
 
   const handleRefresh = () => {
@@ -482,7 +498,7 @@ const UserData = () => {
               className="border border-gray-300 rounded-md p-2"
               placeholder="Filter by"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               style={{ width: 250 }}
             />
 
