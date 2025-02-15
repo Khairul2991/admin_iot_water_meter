@@ -1,52 +1,95 @@
 // eslint-disable-next-line no-unused-vars
 import React, { useState, useEffect, useRef } from "react";
-import { FaUser } from "react-icons/fa";
+import { FaUser, FaBars, FaTimes } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 import logoIcon from "../assets//images/logo.png";
 import logoutIcon from "../assets/images/logout.svg";
 
 function Navbar() {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isMenuMobileOpen, setIsMenuMobileOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const profileDropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const toggleProfileDropdown = () => {
+  const toggleProfileDropdown = (event) => {
+    // Mencegah event propagation agar tidak langsung tertutup
+    event.stopPropagation();
     setIsProfileDropdownOpen(!isProfileDropdownOpen);
+  };
+
+  const toggleMobileMenu = (event) => {
+    event.stopPropagation();
+    setIsMenuMobileOpen(!isMenuMobileOpen);
+    setIsProfileDropdownOpen(false);
   };
 
   const openLogoutModal = () => {
     setIsLogoutModalOpen(true);
     setIsProfileDropdownOpen(false);
+    setIsMenuMobileOpen(false);
   };
 
   const closeLogoutModal = () => {
     setIsLogoutModalOpen(false);
   };
 
-  const confirmLogout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userEmail");
-    navigate("/", { replace: true });
+  const confirmLogout = async () => {
+    setLoading(true);
+    try {
+      // Sign out dari Firebase
+      await signOut(auth);
+
+      // Gunakan logout dari context yang sudah menghapus seluruh data dari secure storage
+      logout();
+
+      // Navigate ke halaman login
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Optional: Tambahkan error handling atau toast notification
+      alert("Logout failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    function handleClickOutside(event) {
+    const handleClickOutside = (event) => {
+      // Tutup profile dropdown jika klik di luar
       if (
         profileDropdownRef.current &&
         !profileDropdownRef.current.contains(event.target)
       ) {
         setIsProfileDropdownOpen(false);
       }
-    }
 
-    document.addEventListener("mousedown", handleClickOutside);
+      // Tutup mobile menu jika klik di luar
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target)
+      ) {
+        setIsMenuMobileOpen(false);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, []);
+
+  // Tutup mobile menu saat navigasi berganti
+  useEffect(() => {
+    setIsMenuMobileOpen(false);
+  }, [location.pathname]);
 
   const getNavLinkClass = (path) => {
     return location.pathname === path
@@ -61,23 +104,37 @@ function Navbar() {
           <a href="/OfficerData" className="inline w-52">
             <img src={logoIcon} alt="Logo" className="w-12" />
           </a>
+
+          {/* Right Section */}
           <div className="flex items-center gap-6">
-            <a
-              href="/OfficerData"
-              className={`${getNavLinkClass(
-                "/OfficerData"
-              )} p-2 rounded-md text-md font-medium transition duration-300 ease-in-out`}
+            {/* Desktop Menu */}
+            <div className="hidden md:flex items-center gap-6">
+              <a
+                href="/OfficerData"
+                className={`${getNavLinkClass(
+                  "/OfficerData"
+                )} p-2 rounded-md text-md font-medium transition duration-300 ease-in-out`}
+              >
+                Officer Data
+              </a>
+              <a
+                href="/UserData"
+                className={`${getNavLinkClass(
+                  "/UserData"
+                )} p-2 rounded-md text-md font-medium transition duration-300 ease-in-out`}
+              >
+                User Data
+              </a>
+            </div>
+            {/* Mobile Menu Button */}
+            <button
+              onClick={toggleMobileMenu}
+              className="md:hidden text-white hover:text-gray-300 p-1"
             >
-              Officer Data
-            </a>
-            <a
-              href="/UserData"
-              className={`${getNavLinkClass(
-                "/UserData"
-              )} p-2 rounded-md text-md font-medium transition duration-300 ease-in-out`}
-            >
-              User Data
-            </a>
+              {isMenuMobileOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+            </button>
+
+            {/* Profile Icon */}
             <div className="relative" ref={profileDropdownRef}>
               <FaUser
                 className="text-white hover:bg-white hover:text-custom-blue cursor-pointer hover:rounded-full rounded-full p-1 transition duration-300 ease-in-out"
@@ -107,6 +164,35 @@ function Navbar() {
         </div>
       </nav>
 
+      {/* Mobile Menu */}
+      {isMenuMobileOpen && (
+        <div
+          ref={mobileMenuRef}
+          className="md:hidden bg-custom-blue shadow-lg mt-20 -mb-20"
+        >
+          <div className="container mx-auto py-2">
+            <a
+              href="/OfficerData"
+              className={`${getNavLinkClass(
+                "/OfficerData"
+              )} block px-4 py-3 text-md font-medium`}
+              onClick={() => setIsMenuMobileOpen(false)}
+            >
+              Officer Data
+            </a>
+            <a
+              href="/UserData"
+              className={`${getNavLinkClass(
+                "/UserData"
+              )} block px-4 py-3 text-md font-medium`}
+              onClick={() => setIsMenuMobileOpen(false)}
+            >
+              User Data
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Logout Confirmation Modal */}
       {isLogoutModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
@@ -119,14 +205,20 @@ function Navbar() {
               <button
                 onClick={closeLogoutModal}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition duration-300"
+                disabled={loading}
               >
                 Cancel
               </button>
               <button
                 onClick={confirmLogout}
-                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-300"
+                className={`px-4 py-2 text-white rounded-md transition duration-300 ${
+                  loading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-500 hover:bg-red-600"
+                }`}
+                disabled={loading}
               >
-                Logout
+                {loading ? "Logging out..." : "Logout"}
               </button>
             </div>
           </div>

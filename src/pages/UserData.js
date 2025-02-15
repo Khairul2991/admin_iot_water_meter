@@ -6,6 +6,7 @@ import { FaEdit, FaTrash } from "react-icons/fa";
 import { MdRefresh } from "react-icons/md";
 import { firestore } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { getAuthToken, isAuthenticated } from "../utils/authUtils";
 import axios from "axios";
 import ExcelJS from "exceljs";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +30,13 @@ const UserData = () => {
     pageSize: 10,
   });
 
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/");
+      throw new Error("Session expired. Please login again.");
+    }
+  }, [navigate]);
+
   const renderHighlightedText = (text, search) => {
     if (!search.trim()) return text;
     const parts = text.split(new RegExp(`(${search})`, "gi")) || [];
@@ -50,15 +58,36 @@ const UserData = () => {
   const handleSearch = (value) => {
     setSearchQuery(value);
 
-    const filtered = records.filter((record) =>
-      Object.keys(record).some((key) => {
-        // Hindari pencarian pada key tertentu seperti 'key' atau fungsi
-        if (key !== "key" && typeof record[key] === "string") {
+    const filtered = records.filter((record) => {
+      // Cari di kolom utama
+      const mainFieldsMatch = Object.keys(record).some((key) => {
+        if (
+          key !== "key" &&
+          key !== "waterMeters" &&
+          typeof record[key] === "string"
+        ) {
           return record[key].toLowerCase().includes(value.toLowerCase());
         }
         return false;
-      })
-    );
+      });
+
+      // Cari di water meters
+      const waterMetersMatch = Object.values(record.waterMeters || {}).some(
+        (waterMeter) => {
+          if (typeof waterMeter === "object") {
+            return (
+              (waterMeter.id &&
+                waterMeter.id.toLowerCase().includes(value.toLowerCase())) ||
+              (waterMeter.address &&
+                waterMeter.address.toLowerCase().includes(value.toLowerCase()))
+            );
+          }
+          return false;
+        }
+      );
+
+      return mainFieldsMatch || waterMetersMatch;
+    });
 
     setFilteredRecords(filtered);
   };
@@ -229,7 +258,7 @@ const UserData = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) {
         throw new Error("No token found");
       }
@@ -313,7 +342,7 @@ const UserData = () => {
   const handleDeleteSelectedRows = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) {
         throw new Error("No token found");
       }
@@ -348,104 +377,152 @@ const UserData = () => {
   };
 
   const confirmExport = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("DataUser");
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("UserData");
 
-    // Add headers
-    const headers = [
-      "No.",
-      ...columns
-        .filter((col) => col.dataIndex !== "no" && col.dataIndex !== "action")
-        .map((col) => col.title),
-    ];
-    worksheet.addRow(headers);
-
-    // Tambahkan header untuk water meters
-    const maxWaterMeters = Math.max(
-      ...filteredRecords.map(
-        (record) => Object.keys(record.waterMeters || {}).length
-      )
-    );
-
-    for (let i = 1; i <= maxWaterMeters; i++) {
-      headers.push(`Water Meter ${i} ID`, `Water Meter ${i} Address`);
-    }
-
-    worksheet.addRow(headers);
-
-    // Format header row
-    worksheet.getRow(1).height = 30;
-    worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-    });
-
-    // Sort filteredRecords based on current sorter state
-    let sortedRecords = [...filteredRecords];
-    if (sorter.columnKey && sorter.order) {
-      sortedRecords.sort((a, b) => {
-        const aValue = a[sorter.columnKey];
-        const bValue = b[sorter.columnKey];
-
-        // Ensure comparison based on type
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          return sorter.order === "ascend"
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-        } else if (typeof aValue === "number" && typeof bValue === "number") {
-          return sorter.order === "ascend" ? aValue - bValue : bValue - aValue;
-        }
-        return 0; // Default case if types are inconsistent
-      });
-    }
-
-    // Prepare and add data
-    for (let [index, record] of sortedRecords.entries()) {
-      const rowData = [
-        index + 1, // New sequential "No." column
-        record.name,
-        record.email,
-        record.phoneNumber,
-        record.street,
-        record.city,
-        record.province,
-        record.country,
-        ...Object.values(record.waterMeters || {}).flatMap((waterMeter) => [
-          waterMeter.id,
-          waterMeter.address,
-        ]),
+      // Definisikan kolom yang akan di-export
+      const exportColumns = [
+        { title: "Name", dataIndex: "name" },
+        { title: "Email", dataIndex: "email" },
+        { title: "Phone Number", dataIndex: "phoneNumber" },
+        { title: "Street", dataIndex: "street" },
+        { title: "City", dataIndex: "city" },
+        { title: "Province", dataIndex: "province" },
+        { title: "Country", dataIndex: "country" },
       ];
-      const row = worksheet.addRow(rowData);
-      row.height = 100;
 
-      // Format data rows
-      row.eachCell((cell) => {
+      // Tambahkan kolom Water Meter secara dinamis
+      const maxWaterMeters = Math.max(
+        ...filteredRecords.map((record) => {
+          // Hitung jumlah water meter yang sebenarnya
+          const waterMeterCount = Object.keys(record.waterMeters || {})
+            .filter((key) => key.startsWith("waterMeter"))
+            .map((key) => parseInt(key.replace("waterMeter", ""))).length;
+          return waterMeterCount;
+        })
+      );
+
+      for (let i = 1; i <= maxWaterMeters; i++) {
+        exportColumns.push(
+          { title: `Water Meter ${i} ID`, dataIndex: `waterMeter${i}ID` },
+          {
+            title: `Water Meter ${i} Address`,
+            dataIndex: `waterMeter${i}Address`,
+          }
+        );
+      }
+
+      // Fungsi untuk membersihkan data
+      const cleanRecord = (record) => {
+        const cleaned = {};
+
+        // Tambahkan data utama
+        exportColumns.slice(0, 7).forEach((col) => {
+          cleaned[col.dataIndex] = record[col.dataIndex] || "";
+        });
+
+        // Tambahkan data water meter
+        for (let i = 1; i <= maxWaterMeters; i++) {
+          const key = `waterMeter${i}`;
+          const waterMeter = record.waterMeters?.[key] || {};
+
+          cleaned[`waterMeter${i}ID`] = waterMeter.id || "";
+          cleaned[`waterMeter${i}Address`] = waterMeter.address || "";
+        }
+
+        return cleaned;
+      };
+
+      // Bersihkan dan proses data
+      const processedRecords = filteredRecords
+        .map(cleanRecord)
+        .filter((record) => Object.values(record).some((val) => val !== ""));
+
+      // Add headers
+      const headers = ["No.", ...exportColumns.map((col) => col.title)];
+      worksheet.addRow(headers);
+
+      // Format header row
+      worksheet.getRow(1).height = 30;
+      worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
         cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.font = { bold: true };
+      });
+
+      // Sort filteredRecords based on current sorter state
+      let sortedRecords = [...processedRecords];
+      if (sorter.columnKey && sorter.order) {
+        sortedRecords.sort((a, b) => {
+          const aValue = a[sorter.columnKey];
+          const bValue = b[sorter.columnKey];
+
+          // Ensure comparison based on type
+          if (typeof aValue === "string" && typeof bValue === "string") {
+            return sorter.order === "ascend"
+              ? aValue.localeCompare(bValue)
+              : bValue.localeCompare(aValue);
+          } else if (typeof aValue === "number" && typeof bValue === "number") {
+            return sorter.order === "ascend"
+              ? aValue - bValue
+              : bValue - aValue;
+          }
+          return 0; // Default case if types are inconsistent
+        });
+      }
+
+      // Prepare and add data
+      // Prepare and add data
+      for (let [index, record] of sortedRecords.entries()) {
+        const rowData = [
+          index + 1, // New sequential "No." column
+          ...exportColumns.map((col) => record[col.dataIndex] || ""),
+        ];
+        const row = worksheet.addRow(rowData);
+        row.height = 25;
+
+        // Format data rows
+        row.eachCell((cell) => {
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+      }
+
+      // Auto-fit columns
+      worksheet.columns.forEach((column) => {
+        let maxLength = 0;
+        column.eachCell({ includeEmpty: true }, (cell) => {
+          let columnLength = cell.value ? cell.value.toString().length : 10;
+          if (columnLength > maxLength) {
+            maxLength = columnLength;
+          }
+        });
+        column.width = maxLength + 2 < 10 ? 10 : maxLength + 2;
+      });
+
+      // Generate Excel file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "user_data.xlsx";
+      link.click();
+
+      setShowExportPopup(false);
+      Modal.success({
+        title: "Export Success",
+        content: "Data exported successfully.",
+        centered: true,
+      });
+    } catch (error) {
+      setShowExportPopup(false);
+      Modal.error({
+        title: "Export Failed",
+        content: "Unable to export data. Please try again.",
+        centered: true,
       });
     }
-
-    // Auto-fit columns
-    worksheet.columns.forEach((column) => {
-      let maxLength = 0;
-      column.eachCell({ includeEmpty: true }, (cell) => {
-        let columnLength = cell.value ? cell.value.toString().length : 10;
-        if (columnLength > maxLength) {
-          maxLength = columnLength;
-        }
-      });
-      column.width = maxLength + 2 < 10 ? 10 : maxLength + 2;
-    });
-
-    // Generate Excel file
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "user_data.xlsx";
-    link.click();
-
-    setShowExportPopup(false);
   };
 
   const rowSelection = {

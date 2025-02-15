@@ -1,8 +1,9 @@
 // src/pages/EditWaterMeter.jsx
 // eslint-disable-next-line no-unused-vars
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { getAuthToken, isAuthenticated } from "../utils/authUtils";
 import "../Number.css";
 
 const EditWaterMeter = () => {
@@ -10,8 +11,6 @@ const EditWaterMeter = () => {
     waterMeters: {},
   });
 
-  const [errors, setErrors] = useState({});
-  const inputRefs = useRef({});
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -22,6 +21,13 @@ const EditWaterMeter = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+
+    useEffect(() => {
+      if (!isAuthenticated()) {
+        navigate("/");
+        throw new Error("Session expired. Please login again.");
+      }
+    }, [navigate]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -122,26 +128,6 @@ const EditWaterMeter = () => {
       // Regular input handling
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
-
-    // Error handling logic
-    let newErrors = { ...errors };
-    if (!value.trim()) {
-      newErrors[name] = `${
-        name.charAt(0).toUpperCase() + name.slice(1)
-      } is required`;
-    } else {
-      delete newErrors[name];
-    }
-    setErrors(newErrors);
-
-    // Scroll to the first error if any
-    const firstErrorElement = Object.keys(newErrors)[0];
-    if (firstErrorElement) {
-      inputRefs.current[firstErrorElement]?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }
   };
 
   const addWaterMeter = () => {
@@ -194,39 +180,11 @@ const EditWaterMeter = () => {
     setMeterToDelete(null);
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-    let firstErrorElement = null;
-
-    Object.keys(formData).forEach((key) => {
-      const value = String(formData[key] || ""); // Pastikan selalu string
-      if (!value.trim()) {
-        newErrors[key] = `${
-          key.charAt(0).toUpperCase() + key.slice(1)
-        } is required`;
-        if (!firstErrorElement) {
-          firstErrorElement = inputRefs.current[key];
-        }
-      }
-    });
-    setErrors(newErrors);
-
-    if (firstErrorElement) {
-      firstErrorElement.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleSubmit = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) {
         throw new Error("No token found");
       }

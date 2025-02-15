@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import "../Number.css";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { isAuthenticated } from "../utils/authUtils";
 
 const AddOfficer = () => {
   const [formData, setFormData] = useState({
@@ -19,6 +20,13 @@ const AddOfficer = () => {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/");
+      throw new Error("Session expired. Please login again.");
+    }
+  }, [navigate]);
 
   // Fungsi untuk mengubah setiap kata menjadi huruf besar
   const capitalizeWords = (str) => {

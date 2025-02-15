@@ -9,6 +9,7 @@ import {
   updatePassword,
   EmailAuthProvider,
 } from "firebase/auth";
+import { getUserEmail, isAuthenticated } from "../utils/authUtils";
 
 const ChangeAdminPassword = () => {
   const [formData, setFormData] = useState({
@@ -32,6 +33,13 @@ const ChangeAdminPassword = () => {
   });
 
   useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/");
+      throw new Error("Session expired. Please login again.");
+    }
+  }, [navigate]);
+
+  useEffect(() => {
     if (formData.passwordbaru && formData.konfirmasipasswordbaru) {
       if (formData.passwordbaru !== formData.konfirmasipasswordbaru) {
         setErrorMessage("Confirm new password does not match new password.");
@@ -42,8 +50,8 @@ const ChangeAdminPassword = () => {
   }, [formData.passwordbaru, formData.konfirmasipasswordbaru]);
 
   useEffect(() => {
-    if (formData.passwordbaru.length > 0 && formData.passwordbaru.length <= 5) {
-      setPasswordError("Password must be more than 5 characters.");
+    if (formData.passwordbaru.length > 0 && formData.passwordbaru.length <= 7) {
+      setPasswordError("Password must be at least 8 characters long.");
     } else {
       setPasswordError("");
     }
@@ -87,7 +95,7 @@ const ChangeAdminPassword = () => {
 
     try {
       // Dapatkan email pengguna dari localStorage
-      const userEmail = localStorage.getItem("userEmail");
+      const userEmail = getUserEmail();
 
       if (!userEmail) {
         throw new Error("User email not found");
@@ -110,7 +118,7 @@ const ChangeAdminPassword = () => {
     } catch (error) {
       // Tangani berbagai jenis kesalahan
       if (
-        error.message.includes("invalid-credential") || 
+        error.message.includes("invalid-credential") ||
         error.message.includes("wrong-password")
       ) {
         setError("Old password is incorrect.");
@@ -195,7 +203,7 @@ const ChangeAdminPassword = () => {
                   </div>
                 </div>
                 <p className="text-gray-500 font-bold text-sm mt-1">
-                  Password must be more than 5 characters.
+                  Password must be at least 8 characters long.
                 </p>
               </div>
               <div className="mb-4 relative">

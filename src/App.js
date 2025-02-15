@@ -5,6 +5,7 @@ import {
   Outlet,
 } from "react-router-dom";
 import "./App.css";
+import { AuthProvider } from "./contexts/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import Navbar from "./components/Navbar";
 import OfficerData from "./pages/OfficerData";
@@ -18,33 +19,38 @@ import ChangeAdminPassword from "./pages/ChangeAdminPassword";
 
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <Routes>
-          {/* Route untuk LoginPage tanpa Navbar */}
-          <Route path="/" element={<LoginPage />} />
+    <AuthProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            {/* Route untuk LoginPage tanpa Navbar */}
+            <Route path="/" element={<LoginPage />} />
 
-          {/* Route yang membutuhkan Navbar */}
-          <Route
-            element={
-              <>
-                <Navbar />
-                <Outlet />
-              </>
-            }
-          >
-            <Route path="/OfficerData" element={<OfficerData />} />
-            <Route path="/UserData" element={<UserData />} />
-            <Route path="/AddOfficer" element={<AddOfficer />} />
-            <Route path="/AddUser" element={<AddUser />} />
-            <Route path="/EditOfficer" element={<EditOfficer />} />
-            <Route path="/EditUser" element={<EditUser />} />
-            <Route path="/EditWaterMeter" element={<EditWaterMeter />} />
-            <Route path="/ChangeAdminPassword" element={<ChangeAdminPassword />} />
-          </Route>
-        </Routes>
-      </div>
-    </Router>
+            {/* Route yang membutuhkan Navbar dan Otentikasi */}
+            <Route
+              element={
+                <>
+                  <Navbar />
+                  <Outlet />
+                </>
+              }
+            >
+              <Route path="/OfficerData" element={<OfficerData />} />
+              <Route path="/UserData" element={<UserData />} />
+              <Route path="/AddOfficer" element={<AddOfficer />} />
+              <Route path="/AddUser" element={<AddUser />} />
+              <Route path="/EditOfficer" element={<EditOfficer />} />
+              <Route path="/EditUser" element={<EditUser />} />
+              <Route path="/EditWaterMeter" element={<EditWaterMeter />} />
+              <Route
+                path="/ChangeAdminPassword"
+                element={<ChangeAdminPassword />}
+              />
+            </Route>
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 

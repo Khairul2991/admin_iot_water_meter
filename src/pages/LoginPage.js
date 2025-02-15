@@ -7,6 +7,7 @@ import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, firestore } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useAuth } from '../contexts/AuthContext';
 
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -14,6 +15,7 @@ function LoginPage() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -25,6 +27,25 @@ function LoginPage() {
   };
 
   const handleLogin = async () => {
+    // Tambahkan validasi email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setErrorMessage("Invalid email format");
+      openErrorModal();
+      return;
+    }
+
+    // Tambahkan validasi password
+    if (password.length < 8) {
+      setErrorMessage("Password must be at least 8 characters long");
+      openErrorModal();
+      return;
+    }
+
+    // Sanitize input (optional, tergantung kebutuhan)
+    const sanitizedEmail = email.trim().toLowerCase();
+    const sanitizedPassword = password.trim();
+
     // Set loading ke true saat proses login dimulai
     setLoading(true);
 
@@ -32,8 +53,8 @@ function LoginPage() {
       // Sign in user with Firebase email/password authentication
       const userCredential = await signInWithEmailAndPassword(
         auth,
-        email,
-        password
+        sanitizedEmail,
+        sanitizedPassword
       );
       const user = userCredential.user;
 
@@ -49,10 +70,14 @@ function LoginPage() {
 
       // Check if the user has the admin role
       if (userData.role === "admin") {
-        // Save user info in local storage (optional)
-        localStorage.setItem("authToken", user.accessToken);
-        localStorage.setItem("userRole", userData.role);
-        localStorage.setItem("userEmail", user.email);
+        // Gunakan fungsi login dari context
+        login({
+          token: user.accessToken,
+          role: userData.role,
+          email: user.email,
+          uid: user.uid,
+          expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 jam
+        });
 
         // Navigate to the data petugas page
         navigate("/OfficerData", { replace: true });
@@ -60,7 +85,26 @@ function LoginPage() {
         throw new Error("You do not have admin privileges.");
       }
     } catch (error) {
-      setErrorMessage(error.message || "An error occurred. Please try again.");
+      // Hindari menampilkan detail error spesifik ke pengguna
+      let friendlyErrorMessage = "Login failed. Please check your credentials.";
+
+      switch (error.code) {
+        case "auth/invalid-email":
+          friendlyErrorMessage = "Invalid email address.";
+          break;
+        case "auth/user-disabled":
+          friendlyErrorMessage = "This account has been disabled.";
+          break;
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+          friendlyErrorMessage = "Invalid email or password.";
+          break;
+        default:
+          friendlyErrorMessage =
+            "An unexpected error occurred. Please try again.";
+      }
+
+      setErrorMessage(friendlyErrorMessage);
       openErrorModal();
     } finally {
       // Set loading kembali ke false setelah proses selesai

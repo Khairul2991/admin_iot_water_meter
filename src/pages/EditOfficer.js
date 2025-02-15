@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../Number.css";
+import { getAuthToken, isAuthenticated } from "../utils/authUtils";
 
 const EditOfficer = () => {
   const [formData, setFormData] = useState({
@@ -21,6 +22,13 @@ const EditOfficer = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/");
+      throw new Error("Session expired. Please login again.");
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,7 +147,7 @@ const EditOfficer = () => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) {
         throw new Error("No token found");
       }

@@ -6,6 +6,7 @@ import { FaEdit, FaTrash } from "react-icons/fa";
 import { MdRefresh } from "react-icons/md";
 import { firestore } from "../firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { getAuthToken, isAuthenticated } from "../utils/authUtils";
 import axios from "axios";
 import ExcelJS from "exceljs";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +29,13 @@ const OfficerData = () => {
     current: 1,
     pageSize: 10,
   });
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate("/");
+      throw new Error("Session expired. Please login again.");
+    }
+  }, [navigate]);
 
   const renderHighlightedText = (text, search) => {
     if (!search.trim()) return text;
@@ -134,7 +142,7 @@ const OfficerData = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) {
         throw new Error("No token found");
       }
@@ -153,8 +161,6 @@ const OfficerData = () => {
 
       setRecords(dataWithIds);
       setFilteredRecords(dataWithIds);
-
-      setLoading(false);
     } catch (error) {
       setError("Failed to load data. Please try again later.");
     } finally {
@@ -212,7 +218,7 @@ const OfficerData = () => {
   const handleDeleteSelectedRows = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) {
         throw new Error("No token found");
       }
@@ -241,8 +247,8 @@ const OfficerData = () => {
       setShowSuccessModal(true);
     } catch (error) {
       setError(
-        error.response?.data?.error || 
-        "Failed to delete data. Please try again later."
+        error.response?.data?.error ||
+          "Failed to delete data. Please try again later."
       );
     } finally {
       setLoading(false);
@@ -250,89 +256,118 @@ const OfficerData = () => {
   };
 
   const confirmExport = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("DataPetugas");
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("OfficerData");
 
-    // Add headers
-    const headers = [
-      "No.",
-      ...columns
-        .filter((col) => col.dataIndex !== "no" && col.dataIndex !== "action")
-        .map((col) => col.title),
-    ];
-    worksheet.addRow(headers);
-
-    // Format header row
-    worksheet.getRow(1).height = 30;
-    worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-    });
-
-    // Sort filteredRecords based on current sorter state
-    let sortedRecords = [...filteredRecords];
-    if (sorter.columnKey && sorter.order) {
-      sortedRecords.sort((a, b) => {
-        const aValue = a[sorter.columnKey];
-        const bValue = b[sorter.columnKey];
-
-        // Ensure comparison based on type
-        if (typeof aValue === "string" && typeof bValue === "string") {
-          return sorter.order === "ascend"
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-        } else if (typeof aValue === "number" && typeof bValue === "number") {
-          return sorter.order === "ascend" ? aValue - bValue : bValue - aValue;
-        }
-        return 0; // Default case if types are inconsistent
-      });
-    }
-
-    // Prepare and add data
-    for (let [index, record] of sortedRecords.entries()) {
-      const rowData = [
-        index + 1, // New sequential "No." column
-        ...(await Promise.all(
-          columns
-            .filter(
-              (col) => col.dataIndex !== "no" && col.dataIndex !== "action"
-            )
-            .map(async (col) => {
-              return record[col.dataIndex] || "";
-            })
-        )),
+      // Definisikan kolom yang akan di-export
+      const exportColumns = [
+        { title: "ID Officer", dataIndex: "id" },
+        { title: "Name", dataIndex: "name" },
+        { title: "Email", dataIndex: "email" },
+        { title: "Phone Number", dataIndex: "phoneNumber" },
       ];
-      const row = worksheet.addRow(rowData);
-      row.height = 100;
 
-      // Format data rows
-      row.eachCell((cell) => {
+      // Fungsi untuk membersihkan data
+      const cleanRecord = (record) => {
+        const cleaned = {};
+        exportColumns.forEach((col) => {
+          cleaned[col.dataIndex] = record[col.dataIndex] || "";
+        });
+        return cleaned;
+      };
+
+      // Bersihkan dan proses data
+      const processedRecords = filteredRecords
+        .map(cleanRecord)
+        .filter((record) => Object.values(record).some((val) => val !== ""));
+
+      // Add headers
+      const headers = ["No.", ...exportColumns.map((col) => col.title)];
+      worksheet.addRow(headers);
+
+      // Format header row
+      worksheet.getRow(1).height = 30;
+      worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
         cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.font = { bold: true };
+      });
+
+      // Sort processedRecords based on current sorter state
+      let sortedRecords = [...processedRecords];
+      if (sorter.columnKey && sorter.order) {
+        sortedRecords.sort((a, b) => {
+          const aValue = a[sorter.columnKey];
+          const bValue = b[sorter.columnKey];
+
+          // Ensure comparison based on type
+          if (typeof aValue === "string" && typeof bValue === "string") {
+            return sorter.order === "ascend"
+              ? aValue.localeCompare(bValue)
+              : bValue.localeCompare(aValue);
+          } else if (typeof aValue === "number" && typeof bValue === "number") {
+            return sorter.order === "ascend"
+              ? aValue - bValue
+              : bValue - aValue;
+          }
+          return 0; // Default case if types are inconsistent
+        });
+      }
+
+      // Prepare and add data
+      sortedRecords.forEach((record, index) => {
+        const rowData = [
+          index + 1, // Nomor urut
+          record.id || "",
+          record.name || "",
+          record.email || "",
+          record.phoneNumber || "",
+        ];
+        const row = worksheet.addRow(rowData);
+        row.height = 25;
+
+        // Format data rows
+        row.eachCell((cell) => {
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+      });
+
+      // Auto-fit columns
+      worksheet.columns.forEach((column) => {
+        let maxLength = 0;
+        column.eachCell({ includeEmpty: true }, (cell) => {
+          let columnLength = cell.value ? cell.value.toString().length : 10;
+          if (columnLength > maxLength) {
+            maxLength = columnLength;
+          }
+        });
+        column.width = maxLength + 2 < 10 ? 10 : maxLength + 2;
+      });
+
+      // Generate Excel file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "officer_data.xlsx";
+      link.click();
+
+      setShowExportPopup(false);
+      Modal.success({
+        title: "Export Success",
+        content: "Data exported successfully.",
+        centered: true,
+      });
+    } catch (error) {
+      setShowExportPopup(false);
+      Modal.error({
+        title: "Export Failed",
+        content: "Unable to export data. Please try again.",
+        centered: true,
       });
     }
-
-    // Auto-fit columns
-    worksheet.columns.forEach((column) => {
-      let maxLength = 0;
-      column.eachCell({ includeEmpty: true }, (cell) => {
-        let columnLength = cell.value ? cell.value.toString().length : 10;
-        if (columnLength > maxLength) {
-          maxLength = columnLength;
-        }
-      });
-      column.width = maxLength + 2 < 10 ? 10 : maxLength + 2;
-    });
-
-    // Generate Excel file
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "officer_data.xlsx";
-    link.click();
-
-    setShowExportPopup(false);
   };
 
   const rowSelection = {
