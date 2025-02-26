@@ -36,8 +36,7 @@ app.post("/api/register-officer", async (req, res) => {
 
     res.status(200).json({ message: "Officer registered successfully." });
   } catch (error) {
-    console.error("Error registering officer:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Officer Registration failed." });
   }
 });
 
@@ -85,8 +84,7 @@ app.post("/api/register-user", async (req, res) => {
 
     res.status(200).json({ message: "User registered successfully." });
   } catch (error) {
-    console.error("Error registering user:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "User Registration failed." });
   }
 });
 
@@ -114,8 +112,7 @@ app.patch("/api/edit-officer/:uid", async (req, res) => {
 
     res.status(200).json({ message: "Officer data updated successfully." });
   } catch (error) {
-    console.error("Error updating officer data:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Failed to update officer data." });
   }
 });
 
@@ -146,8 +143,7 @@ app.patch("/api/edit-user/:uid", async (req, res) => {
 
     res.status(200).json({ message: "User data updated successfully." });
   } catch (error) {
-    console.error("Error updating User data:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Failed to update user data." });
   }
 });
 
@@ -196,8 +192,7 @@ app.patch("/api/edit-water-meters/:uid", async (req, res) => {
       waterMeters: waterMeters,
     });
   } catch (error) {
-    console.error("Error updating water meters:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Failed to update water meter." });
   }
 });
 
@@ -226,8 +221,7 @@ app.delete("/api/delete-officers", async (req, res) => {
 
     res.status(200).json({ message: "Officers deleted successfully." });
   } catch (error) {
-    console.error("Error deleting officers:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Failed to delete officer." });
   }
 });
 
@@ -254,12 +248,9 @@ app.delete("/api/delete-users", async (req, res) => {
 
     res.status(200).json({ message: "Users deleted successfully." });
   } catch (error) {
-    console.error("Error deleting users:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Failed to delete user." });
   }
 });
 
 // Jalankan server
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});
+app.listen(port, () => {});
